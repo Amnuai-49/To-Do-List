@@ -1,4 +1,41 @@
 import json
+import time
+from datetime import datetime
+from pathlib import Path
+import threading
+
+def reminder_loop():
+    while True:
+        print("Checking......")
+        check_reminders()
+        time.sleep(1)
+
+def check_reminders():
+    now = datetime.now()
+
+    for task in tasks:
+        
+        if "reminded" not in task:
+            task["reminded"] = False
+
+        if task["complete"]:
+            continue
+
+        task_datetime = datetime.strptime(
+            task["date"] + " " + task["time"],
+            "%Y-%m-%d %H:%M"
+        )
+
+        if now >= task_datetime and not task["reminded"]:
+            print("======================")
+            print("Reminders!!!")
+            print(f"Task Title :{task["title"]}")
+            print(f"Date :{task[date]} Time :{task["time"]}")
+            print("======================")
+
+            task["reminded"] = True
+            save_task()
+
 
 def load_task():
     with open("tasks.json" ,"r") as file:
@@ -11,7 +48,14 @@ def save_task():
 tasks = load_task()
 tasks_dec = []
 
+reminder_thread = threading.Thread(
+    target = reminder_loop,
+    daemon = True
+)
+reminder_thread.start()
+
 while True:
+
     print("\n=============================")
     print("=========To Do List =========")
     print("=============================")
@@ -37,7 +81,8 @@ while True:
         "des" : des,
         "date" : date,
         "time" : time,
-        "complete" : False
+        "complete" : False,
+        "reminded" : False
     } 
         
         tasks.append(task)
