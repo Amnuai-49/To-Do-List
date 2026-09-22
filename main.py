@@ -56,9 +56,12 @@ while True:
             print(f"{i}.[{status}] {task['title']} {task['date']} {task['time']}")
 
     elif choice == "3":
-        number = int(input("Enter tasks number"))
+        print("Complete Task")
+        number = int(input("Enter Complete tasks number"))
 
         tasks[number-1]["complete"] = True 
+        print(f"Task :{number} Complete!!")
+        save_task()
 
     elif choice == "4":
         print("Delete Tasks")
