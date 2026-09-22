@@ -1,123 +1,149 @@
 import json
 import time
 from datetime import datetime
-from pathlib import Path
 import threading
+from zoneinfo import ZoneInfo
+
+TASK_FILE = "tasks.json"
+APP_TIMEZONE = ZoneInfo("Asia/Bangkok")
+tasks = []
+tasks_lock = threading.RLock()
+
 
 def reminder_loop():
     while True:
-        print("Checking......")
         check_reminders()
         time.sleep(1)
 
+
 def check_reminders():
-    now = datetime.now()
+    now = datetime.now(APP_TIMEZONE)
 
-    for task in tasks:
-        
-        if "reminded" not in task:
-            task["reminded"] = False
+    with tasks_lock:
+        for task in tasks:
+            if task.get("reminded", False):
+                continue
+            if task.get("complete", False):
+                continue
 
-        if task["complete"]:
-            continue
+            try:
+                task_datetime = datetime.strptime(
+                    task["date"] + " " + task["time"],
+                    "%Y-%m-%d %H:%M"
+                ).replace(tzinfo=APP_TIMEZONE)
+            except (KeyError, TypeError, ValueError):
+                print(f"Invalid date/time for task: {task.get('title', '(untitled)')}")
+                continue
 
-        task_datetime = datetime.strptime(
-            task["date"] + " " + task["time"],
-            "%Y-%m-%d %H:%M"
-        )
+            if now >= task_datetime:
+                print("======================")
+                print("Reminders!!!")
+                print(f"Task Title :{task.get('title', '(untitled)')}")
+                print(f"Date :{task['date']} Time :{task['time']}")
+                print("======================")
 
-        if now >= task_datetime and not task["reminded"]:
-            print("======================")
-            print("Reminders!!!")
-            print(f"Task Title :{task["title"]}")
-            print(f"Date :{task[date]} Time :{task["time"]}")
-            print("======================")
-
-            task["reminded"] = True
-            save_task()
+                task["reminded"] = True
+                save_task()
 
 
 def load_task():
-    with open("tasks.json" ,"r") as file:
+    with open(TASK_FILE, "r") as file:
         return json.load(file)
 
+
 def save_task():
-    with open("tasks.json" ,"w") as file:
-        json.dump(tasks ,file ,indent=4)
+    with tasks_lock:
+        with open(TASK_FILE, "w") as file:
+            json.dump(tasks, file, indent=4)
 
-tasks = load_task()
-tasks_dec = []
 
-reminder_thread = threading.Thread(
-    target = reminder_loop,
-    daemon = True
-)
-reminder_thread.start()
+def get_task_number(prompt):
+    try:
+        number = int(input(prompt))
+    except ValueError:
+        print("Please enter a valid task number.")
+        return None
 
-while True:
+    if not 1 <= number <= len(tasks):
+        print("Task number is out of range.")
+        return None
+    return number - 1
 
-    print("\n=============================")
-    print("=========To Do List =========")
-    print("=============================")
 
-    print("1. Add Tasks")
-    print("2. Show Tasks")
-    print("3. Complete Tasks")
-    print("4. Delete Tasks")
-    print("5. Exit")
+def main():
+    global tasks
+    tasks = load_task()
 
-    choice = input("\nChoose : ")
+    reminder_thread = threading.Thread(target=reminder_loop, daemon=True)
+    reminder_thread.start()
 
-    if choice == "1" :
-        print("Add Tasks")
-        title = input("Task Title :")
-        des = input("Description :")
-        date = input("Date (YYYY-MM-DD) :")
-        time = input("Time (HH:MM) :")
-        complete = False 
+    while True:
+        print("\n=============================")
+        print("=========To Do List =========")
+        print("=============================")
+        print("1. Add Tasks")
+        print("2. Show Tasks")
+        print("3. Complete Tasks")
+        print("4. Delete Tasks")
+        print("5. Exit")
 
-        task = {
-        "title" : title,
-        "des" : des,
-        "date" : date,
-        "time" : time,
-        "complete" : False,
-        "reminded" : False
-    } 
-        
-        tasks.append(task)
-        save_task()  
-        print("Task Added")
+        choice = input("\nChoose : ")
 
-    elif choice == "2":
-        print("Show Tasks")
-        print("\nYour Tasks :")
-        for i ,task in enumerate(tasks ,start=1):
-            if task["complete"]:
-                status = "✓"
-            else:
-                status = " "
+        if choice == "1":
+            print("Add Tasks")
+            title = input("Task Title :")
+            description = input("Description :")
+            date = input("Date (YYYY-MM-DD) :")
+            task_time = input("Time (HH:MM) :")
 
-            print(f"{i}.[{status}] {task['title']} {task['date']} {task['time']}")
+            try:
+                datetime.strptime(f"{date} {task_time}", "%Y-%m-%d %H:%M")
+            except ValueError:
+                print("Invalid date or time format.")
+                continue
 
-    elif choice == "3":
-        print("Complete Task")
-        number = int(input("Enter Complete tasks number"))
+            tasks.append({
+                "title": title,
+                "des": description,
+                "date": date,
+                "time": task_time,
+                "complete": False,
+                "reminded": False,
+            })
+            save_task()
+            print("Task Added")
 
-        tasks[number-1]["complete"] = True 
-        print(f"Task :{number} Complete!!")
-        save_task()
+        elif choice == "2":
+            print("Show Tasks")
+            print("\nYour Tasks :")
+            for index, task in enumerate(tasks, start=1):
+                status = "✓" if task.get("complete", False) else " "
+                print(f"{index}.[{status}] {task.get('title', '(untitled)')} "
+                      f"{task.get('date', '-')} {task.get('time', '-')}")
 
-    elif choice == "4":
-        print("Delete Tasks")
-        Dnum = int(input("Delete Task number :"))
-        tasks.pop(Dnum -1)
-        save_task()
-        print("Task Deleted")
+        elif choice == "3":
+            print("Complete Task")
+            index = get_task_number("Enter Complete tasks number: ")
+            if index is not None:
+                tasks[index]["complete"] = True
+                print(f"Task :{index + 1} Complete!!")
+                save_task()
 
-    elif choice == "5":
-        print("Exit")
-        break
+        elif choice == "4":
+            print("Delete Tasks")
+            index = get_task_number("Delete Task number :")
+            if index is not None:
+                tasks.pop(index)
+                save_task()
+                print("Task Deleted")
 
-    else:
-        print("***Invalid Input Value***")
+        elif choice == "5":
+            print("Exit")
+            break
+
+        else:
+            print("***Invalid Input Value***")
+
+
+if __name__ == "__main__":
+    main()
