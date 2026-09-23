@@ -71,6 +71,35 @@ def get_task_number(prompt):
         return None
     return number - 1
 
+def search_tasks():
+    keyword = input("Search task title or description :").strip().casefold()
+
+    if not keyword:
+        print("Please enter a search keyword.")
+        return
+
+    maches = []
+
+    with tasks_lock:
+        for index ,task in enumerate(tasks ,start=1):
+            title = task.get("title" ,"").casefold()
+            description = task.get("des" ,"").casefold()
+
+            if keyword in title or keyword in description:
+                maches.append((index ,task))
+
+    if not maches:
+        print("No tasks found matching the keyword.")
+        return
+
+    print("\nSearch Results :")
+    for index ,task in maches:
+        status = "✓" if task.get("complete", False) else " "
+        print(f"{index}.[{status}] {task.get('title', '(untitled)')} "
+              f"{task.get('date', '-')} {task.get('time', '-')}")
+        print(f"    Description: {task.get('des', '')}")
+
+
 def main():
     global tasks
     tasks = load_task()
@@ -87,7 +116,8 @@ def main():
         print("3. Complete Tasks")
         print("4. Edit Tasks")
         print("5. Delete Tasks")
-        print("6. Exit")
+        print("6. Search Tasks")
+        print("7. Exit")
 
         choice = input("\nChoose : ")
 
@@ -179,6 +209,10 @@ def main():
                 print("Task Deleted")
 
         elif choice == "6":
+            print("Search Tasks")
+            search_tasks()
+
+        elif choice == "7":
             print("Exit")
             break
 
