@@ -4,6 +4,7 @@ from datetime import datetime
 import threading
 from zoneinfo import ZoneInfo
 
+encoding = "utf-8"
 TASK_FILE = "tasks.json"
 APP_TIMEZONE = ZoneInfo("Asia/Bangkok")
 tasks = []
@@ -36,9 +37,10 @@ def check_reminders():
                 continue
 
             if now >= task_datetime:
-                print("======================")
+                print("\n======================")
                 print("Reminders!!!")
                 print(f"Task Title :{task.get('title', '(untitled)')}")
+                print(f"Description :{task.get('des', '')}")
                 print(f"Date :{task['date']} Time :{task['time']}")
                 print("======================")
 
@@ -47,13 +49,13 @@ def check_reminders():
 
 
 def load_task():
-    with open(TASK_FILE, "r") as file:
+    with open(TASK_FILE, "r", encoding=encoding) as file:
         return json.load(file)
 
 
 def save_task():
     with tasks_lock:
-        with open(TASK_FILE, "w") as file:
+        with open(TASK_FILE, "w", encoding=encoding) as file:
             json.dump(tasks, file, indent=4)
 
 
@@ -69,7 +71,6 @@ def get_task_number(prompt):
         return None
     return number - 1
 
-
 def main():
     global tasks
     tasks = load_task()
@@ -84,8 +85,9 @@ def main():
         print("1. Add Tasks")
         print("2. Show Tasks")
         print("3. Complete Tasks")
-        print("4. Delete Tasks")
-        print("5. Exit")
+        print("4. Edit Tasks")
+        print("5. Delete Tasks")
+        print("6. Exit")
 
         choice = input("\nChoose : ")
 
@@ -120,6 +122,7 @@ def main():
                 status = "✓" if task.get("complete", False) else " "
                 print(f"{index}.[{status}] {task.get('title', '(untitled)')} "
                       f"{task.get('date', '-')} {task.get('time', '-')}")
+                print(f"    Description: {task.get('des', '')}")
 
         elif choice == "3":
             print("Complete Task")
@@ -130,6 +133,44 @@ def main():
                 save_task()
 
         elif choice == "4":
+            print("Edit Tasks")
+            index = get_task_number("Edit Task number :")
+            if index is not None:
+                task = tasks[index]
+                print(f"Editing Task: {task.get('title', '(untitled)')}")
+                new_title = input(f"New Title ({task.get('title', '')}): ")
+                new_description = input(f"New Description ({task.get('des', '')}): ")
+                new_date = input(f"New Date ({task.get('date', '')}): ")
+                new_time = input(f"New Time ({task.get('time', '')}): ")
+                new_status = input(f"Status Now :({'In complete' if task.get('complete', False) else 'complete'}) New Status (complete/incomplete) : ")
+
+                date_changed = bool(new_date and new_date != task.get("date", ""))
+                time_changed = bool(new_time and new_time != task.get("time", ""))
+
+                try:
+                    datetime.strptime(f"{new_date} {new_time}", "%Y-%m-%d %H:%M")
+                except ValueError:
+                    print("Invalid date or time format.")
+                    continue
+
+                if new_title:
+                    task["title"] = new_title
+                if new_description:
+                    task["des"] = new_description
+                if new_date:
+                    task["date"] = new_date
+                if new_time:
+                    task["time"] = new_time
+                if date_changed or time_changed:
+                    task["reminded"] = False
+
+                if new_status.lower() in ["complete", "incomplete"]:
+                    task["complete"] = new_status.lower() == "complete"
+
+                save_task()
+                print("Task Edited")
+
+        elif choice == "5":
             print("Delete Tasks")
             index = get_task_number("Delete Task number :")
             if index is not None:
@@ -137,7 +178,7 @@ def main():
                 save_task()
                 print("Task Deleted")
 
-        elif choice == "5":
+        elif choice == "6":
             print("Exit")
             break
 
