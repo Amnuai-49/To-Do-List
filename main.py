@@ -49,8 +49,21 @@ def check_reminders():
 
 
 def load_task():
-    with open(TASK_FILE, "r", encoding=encoding) as file:
-        return json.load(file)
+    try:
+        with open(TASK_FILE, "r", encoding=encoding) as file:
+            loaded_tasks = json.load(file)
+    except FileNotFoundError:
+        print(f"Task file not found: {TASK_FILE}. Starting with an empty task list.")
+        return []
+    except json.JSONDecodeError:
+        print(f"Invalid JSON in {TASK_FILE}. Starting with an empty task list.")
+        return []
+
+    if not isinstance(loaded_tasks, list):
+        print(f"Invalid task data in {TASK_FILE}. Starting with an empty task list.")
+        return []
+
+    return loaded_tasks
 
 
 def save_task():
@@ -70,6 +83,34 @@ def get_task_number(prompt):
         print("Task number is out of range.")
         return None
     return number - 1
+
+
+def update_task(task, title, description, date, task_time, status):
+    updated_date = date or task.get("date", "")
+    updated_time = task_time or task.get("time", "")
+
+    try:
+        datetime.strptime(f"{updated_date} {updated_time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return False
+
+    date_changed = updated_date != task.get("date", "")
+    time_changed = updated_time != task.get("time", "")
+
+    if title:
+        task["title"] = title
+    if description:
+        task["des"] = description
+    task["date"] = updated_date
+    task["time"] = updated_time
+    if date_changed or time_changed:
+        task["reminded"] = False
+
+    if status.lower() in ["complete", "incomplete"]:
+        task["complete"] = status.lower() == "complete"
+
+    return True
+
 
 def search_tasks():
     keyword = input("Search task title or description :").strip().casefold()
@@ -174,28 +215,11 @@ def main():
                 new_time = input(f"New Time ({task.get('time', '')}): ")
                 new_status = input(f"Status Now :({'In complete' if task.get('complete', False) else 'complete'}) New Status (complete/incomplete) : ")
 
-                date_changed = bool(new_date and new_date != task.get("date", ""))
-                time_changed = bool(new_time and new_time != task.get("time", ""))
-
-                try:
-                    datetime.strptime(f"{new_date} {new_time}", "%Y-%m-%d %H:%M")
-                except ValueError:
+                if not update_task(
+                    task, new_title, new_description, new_date, new_time, new_status
+                ):
                     print("Invalid date or time format.")
                     continue
-
-                if new_title:
-                    task["title"] = new_title
-                if new_description:
-                    task["des"] = new_description
-                if new_date:
-                    task["date"] = new_date
-                if new_time:
-                    task["time"] = new_time
-                if date_changed or time_changed:
-                    task["reminded"] = False
-
-                if new_status.lower() in ["complete", "incomplete"]:
-                    task["complete"] = new_status.lower() == "complete"
 
                 save_task()
                 print("Task Edited")
